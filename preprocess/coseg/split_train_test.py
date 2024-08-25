@@ -32,7 +32,7 @@ def split_train_test(data_dir: str, ratio: float = 0.85, splits: str = None) -> 
     for category in config["classes"]["coseg"]:
         for mode in ["train", "test"]:
             for data in ["gt", "shapes"]:
-                os.makedirs(join(data_dir, mode, category, data))
+                os.makedirs(join(data_dir, mode, category, data), exist_ok=True)
             if splits is not None:
                 for idx in splits_index[category][mode]:
                     f = str(idx) + ".off"
