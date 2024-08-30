@@ -30,7 +30,7 @@ def split_train_test(data_dir: str, ratio: float = 0.85, splits: str = None) -> 
         print("\t Using predefined train/test splits.")
 
     for category in config["classes"]["coseg"]:
-        for mode in ["train", "test"]:
+        for mode in ["test","train"]:
             for data in ["gt", "shapes"]:
                 os.makedirs(join(data_dir, mode, category, data), exist_ok=True)
             if splits is not None:
@@ -45,7 +45,6 @@ def split_train_test(data_dir: str, ratio: float = 0.85, splits: str = None) -> 
 
                     shutil.copyfile(old_shape_path, new_shape_path)
                     shutil.copyfile(old_gt_path, new_gt_path)
-                return
 
         files = sorted(os.listdir(join(data_dir, category, "shapes")))
         num_files = len(files)
