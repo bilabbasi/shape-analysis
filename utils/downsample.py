@@ -1,5 +1,5 @@
 import numpy as np
-# from scipy.spatial import cKDTree
+from utils.mesh import read_off, mesh2ply, mesh2off
 
 class Vertex:
     def __init__(self, position):
@@ -63,7 +63,10 @@ class Mesh:
         removed_vertices = set()
 
         while len(self.vertices) - len(removed_vertices) > target_vertices:
-            edge = self.edges.pop(0)
+            try:
+                edge = self.edges.pop(0)
+            except IndexError:
+                break
             v1_idx, v2_idx = [self.vertices.index(v) for v in edge.vertices]
 
             # Skip if either vertex has been removed
@@ -71,7 +74,11 @@ class Mesh:
                 continue
 
             # Merge v2 into v1
-            self.vertices[v1_idx].position = edge.target
+            v1_pos = self.vertices[v1_idx].position
+            v2_pos = self.vertices[v2_idx].position
+
+            # self.vertices[v1_idx].position = edge.target
+            self.vertices[v1_idx].position = (v1_pos + v2_pos)/2
             self.vertices[v1_idx].q += self.vertices[v2_idx].q
             removed_vertices.add(v2_idx)
 
@@ -92,61 +99,50 @@ class Mesh:
         self.vertices = [self.vertices[i] for i in new_vertex_map]
         self.faces = [[new_vertex_map[vertex_map[i]] for i in face] for face in self.faces]
 
-        return np.array([v.position for v in self.vertices]), self.faces
+        return np.array([v.position for v in self.vertices]), self.faces, new_vertex_map
 
 def downsample_mesh(vertices, faces, target_vertices):
     mesh = Mesh(vertices, faces)
     return mesh.simplify(target_vertices)
 
-def read_off_file(file_path):
-    with open(file_path, 'r') as file:
-        if file.readline().strip() != 'OFF':
-            raise ValueError('The file does not start with OFF')
-        
-        n_verts, n_faces, n_edges = map(int, file.readline().split())
-
-        vertices = []
-        for _ in range(n_verts):
-            vertex = list(map(float, file.readline().split()))
-            vertices.append(vertex)
-
-        faces = []
-        for _ in range(n_faces):
-            face = list(map(int, file.readline().split()))
-            if face[0] != 3:
-                raise ValueError('Only triangular meshes are supported')
-            faces.append(face[1:])
-
-    return np.array(vertices), np.array(faces)
-
 def process_and_downsample_off(input_file, target_vertices):
-    vertices, faces = read_off_file(input_file)
-    new_vertices, new_faces = downsample_mesh(vertices, faces, target_vertices)
-    return new_vertices, new_faces
+    vertices, faces = read_off(input_file)
+    new_vertices, new_faces, vertex_map = downsample_mesh(vertices, faces, target_vertices)
+    return new_vertices, new_faces, vertex_map
 
-def write_off_file(output_file, vertices, faces):
-    with open(output_file, 'w') as file:
-        file.write("OFF\n")
-        file.write(f"{len(vertices)} {len(faces)} 0\n")
-        
-        for vertex in vertices:
-            file.write(f"{vertex[0]} {vertex[1]} {vertex[2]}\n")
-        
-        for face in faces:
-            file.write(f"3 {face[0]} {face[1]} {face[2]}\n")
+def process_segmentation_map(segmentation_file: str, vertex_map: dict=None):
+    with open(segmentation_file, 'r') as f:
+        old_segmentation = [int(l.strip()) for l in f.readlines()]
 
+    new_segmentation = None
+    if vertex_map is not None:
+        new_segmentation = list(range(len(vertex_map)))
+        for original_idx, label in enumerate(old_segmentation):
+            if original_idx in vertex_map.keys():
+                new_segmentation[vertex_map[original_idx]] = label
+    return old_segmentation, new_segmentation
 
 if __name__ == "__main__":
     # Example usage
-    input_file = "data/COSEG/tele_aliens/shapes/10.off"
+    input_file = "data/COSEG/train/tele_aliens/shapes/1.off"
+    gt_file = "data/COSEG/train/tele_aliens/vert_gt/1.seg"
+
     output_file = "output_mesh.off"
+    output_gt = "output_gt.seg"
     target_vertices = 1000
 
-    new_vertices, new_faces = process_and_downsample_off(input_file, target_vertices)
-    write_off_file(output_file, new_vertices, new_faces)
+    vertices, faces = read_off(input_file)
 
-    print(f"Original vertices: {len(read_off_file(input_file)[0])}")
-    print(f"Original faces: {len(read_off_file(input_file)[1])}")
+    new_vertices, new_faces, vertex_map = process_and_downsample_off(input_file, target_vertices)
+    gt, new_gt = process_segmentation_map(gt_file, vertex_map)
+
+    mesh2off(new_vertices, new_faces, output_file)
+
+    mesh2ply(vertices, faces, np.array(gt), fname="output_segmentation_source.ply")
+    mesh2ply(new_vertices, new_faces, np.array(new_gt), fname=f"output_segmentation_{target_vertices}.ply")
+
+    print(f"Original vertices: {len(read_off(input_file)[0])}")
+    print(f"Original faces: {len(read_off(input_file)[1])}")
     print(f"New vertices: {len(new_vertices)}")
     print(f"New faces: {len(new_faces)}")
     print(f"Downsampled mesh written to {output_file}")
