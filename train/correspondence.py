@@ -47,7 +47,7 @@ def train(
     loss_epoch = torch.zeros(len(train_loader))
     model.train()
     target = torch.arange(train_dataset[0].num_nodes).to(device)
-    for idx, data in enumerate(train_loader):
+    for idx, data in tqdm(enumerate(train_loader)):
         v = data.pos.to(device)
         e = data.edge_index.to(device)
         f = data.face.t().to(device)

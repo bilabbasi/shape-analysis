@@ -20,7 +20,7 @@ def convert_labels(data_dir: str, new_gt_folder: str = "vert_gt") -> None:
     for mode in ["train", "test"]:
         for cat in config["classes"]["coseg"]:
             files = os.listdir(join(data_dir, mode, cat, "shapes"))
-            os.makedirs(join(data_dir, mode, cat, new_gt_folder))
+            os.makedirs(join(data_dir, mode, cat, new_gt_folder), exist_ok=True)
             for f in files:
                 data = trimesh.load(join(data_dir, mode, cat, "shapes", f))
 

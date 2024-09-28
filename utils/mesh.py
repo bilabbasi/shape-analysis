@@ -3,10 +3,50 @@ import numpy as np
 
 cmap = plt.get_cmap("viridis")
 
-from typing import NoReturn
+from typing import NoReturn, Tuple
+
+def seg2txt(seg: list[str|int], fname: str) -> None:
+    lines = [f"{item}\n" for item in seg]
+    with open(fname, 'w') as file:
+        file.writelines(lines)
+
+def mesh2off(vertices, faces, fname: str="mesh.off"):
+    with open(fname, "w") as file:
+        file.write("OFF\n")
+        file.write(f"{len(vertices)} {len(faces)} 0\n")
+
+        for vertex in vertices:
+            file.write(f"{vertex[0]} {vertex[1]} {vertex[2]}\n")
+
+        for face in faces:
+            file.write(f"3 {face[0]} {face[1]} {face[2]}\n")
 
 
-def mesh2obj(vertices: np.array, faces: np.array, fname: str = "mesh.obj", shift: int = 1) -> NoReturn:
+def read_off(file_path: str) -> Tuple[np.array, np.array]:
+    with open(file_path, "r") as file:
+        if file.readline().strip() != "OFF":
+            raise ValueError("The file does not start with OFF")
+
+        n_verts, n_faces, n_edges = map(int, file.readline().split())
+
+        vertices = []
+        for _ in range(n_verts):
+            vertex = list(map(float, file.readline().split()))
+            vertices.append(vertex)
+
+        faces = []
+        for _ in range(n_faces):
+            face = list(map(int, file.readline().split()))
+            if face[0] != 3:
+                raise ValueError("Only triangular meshes are supported")
+            faces.append(face[1:])
+
+    return np.array(vertices), np.array(faces)
+
+
+def mesh2obj(
+    vertices: np.array, faces: np.array, fname: str = "mesh.obj", shift: int = 1
+) -> NoReturn:
     """
     Returns a .obj with the input vertices and faces.
 
@@ -82,7 +122,7 @@ def mesh2ply(
     else:
         colours = weights
 
-    for (v, c) in zip(vertices, colours):
+    for v, c in zip(vertices, colours):
         print(f"{v[0]} {v[1]} {v[2]} {int(c[0])} {int(c[1])} {int(c[2])}", file=ply)
     for f in faces:
         print(f"3 {int(f[0])} {int(f[1])} {int(f[2])}", file=ply)
