@@ -4,6 +4,7 @@ junk/
 data/
 logs/
 tmp/
+local_experiments/
 
 *.swp
 *.pth
