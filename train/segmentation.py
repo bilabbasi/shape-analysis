@@ -1,3 +1,4 @@
+from genericpath import exists
 import os
 import time
 from os.path import join
@@ -16,6 +17,7 @@ import datasets
 import models
 import utils
 
+from pathlib import Path
 
 def train(
     model: Type[nn.Module],
@@ -27,6 +29,7 @@ def train(
     in_channels: int = 3,
     orthonormality_penalty: float = 0.0,
     frobenius_penalty: float = 0.0,
+    deformable: bool = True
 ) -> Tuple[nn.Module, optim.Optimizer, FloatTensor, int]:
     """
     Trains model on data loaded by ``train_loader`` using ``optimizer``.
@@ -52,7 +55,7 @@ def train(
 
     # TRAINING LOOP
     model.train()
-    for (v, e, f), target in train_loader:
+    for (v, e, f), target in tqdm(train_loader):
         v = v[0].to(device)
         e = e[0].to(device)
         f = f[0].to(device)
@@ -66,11 +69,17 @@ def train(
         pred = model(input_features, v, e, f)
 
         # Compute losses
+        if len(target) > len(pred):
+            target = target[:len(pred)]
+        # breakpoint()
         loss = functional.nll_loss(functional.log_softmax(pred, dim=1), target)
         if orthonormality_penalty > 0:
             loss += utils.orthonormality_penalization(model.metric_per_vertex)
         if frobenius_penalty > 0:
             loss += utils.frobenius_norm_penalization(model.metric_per_vertex)
+        if deformable:
+            for vertex_delta in model.vertex_deltas:
+                loss += 1e-4 * vertex_delta.abs().mean().pow(2)
 
         # Backpropagate loss
         loss = loss / batch_size
@@ -105,6 +114,8 @@ def test(model: Type[nn.Module], test_loader: Type[DataLoader], in_channels: int
     :return: Test accuracy
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    pred_folder = Path(log_dir) / "predictions" / f"epoch_{epoch}"
+    pred_folder.mkdir(parents=True, exist_ok=True)
 
     acc_epoch = torch.zeros(len(test_loader))
     loss_epoch = torch.zeros(len(test_loader))
@@ -124,11 +135,29 @@ def test(model: Type[nn.Module], test_loader: Type[DataLoader], in_channels: int
             in_features = v
 
         pred = model(in_features, v, e, f)
+        if len(target) > len(pred):
+            target = target[:len(pred)]
 
+        pred_seg = functional.softmax(pred, dim=1).max(1)[1]
         loss_epoch[idx] = functional.nll_loss(functional.log_softmax(pred, dim=1), target).cpu().data
-        acc_epoch[idx] = (functional.softmax(pred, dim=1).max(1)[1].eq(target).sum().float() / len(target)).cpu().data
+        acc_epoch[idx] = (pred_seg.eq(target).sum().float() / len(target)).cpu().data
 
         idx += 1
+
+        # Store predictions
+        if idx < 5:
+            pred_path = pred_folder / f"{idx}.ply"
+            utils.mesh.mesh2ply(v,f,pred_seg, fname=pred_path)
+
+            ## Visualize deformed vertices
+            vertex_delta_path = pred_folder / "vertex_deformations" / str(idx)
+            vertex_delta_path.mkdir(parents=True, exist_ok=True)
+            vertex_deltas = model.vertex_deltas
+            v_deform = v.clone()
+            utils.mesh.mesh2ply(v_deform,f,pred_seg, fname= vertex_delta_path / f"original.ply")
+            for v_idx, vertex_delta in enumerate(vertex_deltas):
+                v_deform += vertex_delta
+                utils.mesh.mesh2ply(v_deform,f,pred_seg, fname= vertex_delta_path / f"{v_idx}.ply")
 
     loss_mean = loss_epoch.mean()
     loss_std = loss_epoch.std()
@@ -205,6 +234,7 @@ if __name__ == "__main__":
     iteration = 0
     training_loop = tqdm(range(args["n_epochs"]))
     for epoch in training_loop:
+        test_loss_mean, test_loss_std, acc_mean, acc_std = test(model, test_loader, args["in_channels"])
 
         model, optimizer, train_loss_mean, train_loss_std, iteration = train(
             model,
@@ -217,7 +247,7 @@ if __name__ == "__main__":
             args["orthonormality_penalty"],
             args["frobenius_penalty"],
         )
-        test_loss_mean, test_loss_std, acc_mean, acc_std = test(model, test_loader, args["in_channels"])
+        # test_loss_mean, test_loss_std, acc_mean, acc_std = test(model, test_loader, args["in_channels"])
 
         print(
             "%d,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f"
@@ -237,7 +267,7 @@ if __name__ == "__main__":
                     "train_loss": train_loss_mean,
                     "accuracy": acc_mean,
                 },
-                join(log_dir, "experiment.pth"),
+                join(log_dir, f"experiment_{epoch}.pth"),
             )
 
     epoch_log.close()

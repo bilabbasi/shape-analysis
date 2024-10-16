@@ -4,7 +4,7 @@ import torch
 from torch import FloatTensor, LongTensor, nn
 from torch.nn import functional as F
 
-from .metric_conv import MetricConv
+from .metric_conv import MetricConv, DeformableMetricConv
 
 
 class MetricConvBlock(nn.Module):
@@ -30,17 +30,29 @@ class MetricConvBlock(nn.Module):
         metric_n_hidden: int = 32,
         embedding_dim: int = 3,
         symmetric: bool = True,
+        deformable: bool = False
     ):
         super(MetricConvBlock, self).__init__()
         # Initialize MetricConv CNN operator
-        self.conv = MetricConv(
-            in_channels,
-            out_channels,
-            info=info,
-            metric_n_hidden=metric_n_hidden,
-            embedding_dim=embedding_dim,
-            symmetric=symmetric,
-        )
+        if not deformable:
+            self.conv = MetricConv(
+                in_channels,
+                out_channels,
+                info=info,
+                metric_n_hidden=metric_n_hidden,
+                embedding_dim=embedding_dim,
+                symmetric=symmetric,
+            )
+        else:
+            self.conv = DeformableMetricConv(
+                in_channels,
+                out_channels,
+                info=info,
+                metric_n_hidden=metric_n_hidden,
+                embedding_dim=embedding_dim,
+                symmetric=symmetric,
+            )
+
         self.nonlinear = nn.ELU()
 
     def forward(
@@ -60,11 +72,11 @@ class MetricConvBlock(nn.Module):
 
         :return: Returns tensor with ``n_hidden`` features for each vertex
         """
-        x = self.conv(features, vertices, edges, faces)
+        x, delta_vert = self.conv(features, vertices, edges, faces)
         x = (x - x.mean(dim=0)) / (x.std(dim=0) + eps)
         x = self.nonlinear(x)
         self.metric_per_vertex = self.conv.metric_per_vertex
-        return x
+        return x, delta_vert
 
 
 class MetricResBlock(nn.Module):
@@ -88,17 +100,28 @@ class MetricResBlock(nn.Module):
         metric_n_hidden: int = 32,
         embedding_dim: int = 3,
         symmetric: bool = True,
+        deformable: bool = True
     ):
         super(MetricResBlock, self).__init__()
         # Initialize MetricConv CNN operator
-        self.conv = MetricConv(
-            n_hidden,
-            n_hidden,
-            info=info,
-            metric_n_hidden=metric_n_hidden,
-            embedding_dim=embedding_dim,
-            symmetric=symmetric,
-        )
+        if not deformable:
+            self.conv = MetricConv(
+                n_hidden,
+                n_hidden,
+                info=info,
+                metric_n_hidden=metric_n_hidden,
+                embedding_dim=embedding_dim,
+                symmetric=symmetric,
+            )
+        else:
+            self.conv = DeformableMetricConv(
+                n_hidden,
+                n_hidden,
+                info=info,
+                metric_n_hidden=metric_n_hidden,
+                embedding_dim=embedding_dim,
+                symmetric=symmetric,
+            )
         self.nonlinear = nn.ELU()
 
     def forward(
@@ -119,12 +142,12 @@ class MetricResBlock(nn.Module):
         :return: Returns tensor with ``n_hidden`` features for each vertex
         """
         residual = features.clone()  # Store original features to be added back as the residual
-        x = self.conv(features, vertices, edges, faces)
+        x, vertex_delta = self.conv(features, vertices, edges, faces)
         x = (x - x.mean(dim=0)) / (x.std(dim=0) + eps)
         x = self.nonlinear(x)
         out = (x + residual) / 2  # Add back residual and divide by 2 for average
         self.metric_per_vertex = self.conv.metric_per_vertex
-        return out
+        return out, vertex_delta
 
 
 class MetricResNet(nn.Module):
@@ -149,15 +172,15 @@ class MetricResNet(nn.Module):
         embedding_dim = kwargs["embedding_dim"] if "embedding_dim" in kwargs.keys() else 8
         symmetric = kwargs["symmetric"] if "symmetric" in kwargs.keys() else True
 
-        self.conv1 = MetricConv(in_feats, n_hidden, info=info, embedding_dim=embedding_dim,symmetric=symmetric)
+        self.conv1 = DeformableMetricConv(in_feats, n_hidden, info=info, embedding_dim=embedding_dim,symmetric=symmetric)
 
         # Instantiate the residual blocks
         res_blocks = []
         for _ in range(n_layers):
-            res_blocks.append(MetricResBlock(n_hidden, info, embedding_dim=embedding_dim,symmetric=symmetric))
+            res_blocks.append(MetricResBlock(n_hidden, info, embedding_dim=embedding_dim,symmetric=symmetric, deformable=True))
         self.res_blocks = nn.ModuleList(res_blocks)
 
-        self.conv2 = MetricConv(n_hidden, out_feats, info=info, embedding_dim=embedding_dim,symmetric=symmetric)
+        self.conv2 = DeformableMetricConv(n_hidden, out_feats, info=info, embedding_dim=embedding_dim,symmetric=symmetric)
 
         self.nonlinear = nn.ELU()
 
@@ -180,19 +203,25 @@ class MetricResNet(nn.Module):
         """
 
         self.metric_per_vertex = []
+        self.vertex_deltas = []
 
         x = features
 
-        x = self.conv1(x, vertices, edges, faces)
+        x, vertex_delta = self.conv1(x, vertices, edges, faces)
+        vertices = vertices + vertex_delta
+        self.vertex_deltas.append(vertex_delta)
+
         x = (x - x.mean(dim=0)) / (x.std(dim=0) + eps)
         x = self.nonlinear(x)
         self.metric_per_vertex.append(self.conv1.metric_per_vertex)
 
         for i in range(len(self.res_blocks)):
-            x = self.res_blocks[i](x, vertices, edges, faces)
+            x, vertex_delta = self.res_blocks[i](x, vertices, edges, faces)
+            vertices = vertices + vertex_delta
+            self.vertex_deltas.append(vertex_delta)
             self.metric_per_vertex.append(self.res_blocks[i].metric_per_vertex)
 
-        out = self.conv2(x, vertices, edges, faces)
+        out, vertex_delta = self.conv2(x, vertices, edges, faces)
         self.metric_per_vertex.append(self.conv2.metric_per_vertex)
 
         return out
@@ -237,7 +266,7 @@ class LinearMetricNet(nn.Module):
         nn.init.constant_(self.fc2.bias, 0)
 
     def forward(self, features: FloatTensor, vertices: FloatTensor, edges: LongTensor, faces: LongTensor) -> FloatTensor:
-        """
+        r"""
         :param features: Input features per vertex
         :param vertices: Positions of vectors in \mathbf{R}^3
         :param edges: Edge connectivity of vertices
@@ -358,3 +387,4 @@ class MetricConvNet(nn.Module):
             self.metric_per_vertex.append(self.conv6.metric_per_vertex)
 
         return out
+
