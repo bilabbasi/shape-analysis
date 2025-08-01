@@ -77,9 +77,12 @@ def train(
             loss += utils.orthonormality_penalization(model.metric_per_vertex)
         if frobenius_penalty > 0:
             loss += utils.frobenius_norm_penalization(model.metric_per_vertex)
+            
         if deformable:
+            vertex_delta_loss = 0.
             for vertex_delta in model.vertex_deltas:
-                loss += 1e-4 * vertex_delta.abs().mean().pow(2)
+                vertex_delta_loss += 1e-4 * vertex_delta.abs().mean().pow(2)
+            vertex_delta_loss /= len(model.vertex_deltas)
 
         # Backpropagate loss
         loss = loss / batch_size
