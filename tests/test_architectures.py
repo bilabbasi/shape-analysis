@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from models import architectures
+from models import MetricResNet, MetricConvNet, LinearMetricNet
 
 # Create test data (triangular-based pyramid)
 v0 = torch.tensor([0, 0, torch.rand(1)])
@@ -48,7 +48,7 @@ def test_metric_resnet():
     """
     Test of ``MetricResNet`` from the ``metric_conv`` module.
     """
-    model = architectures.MetricResNet(in_feats, out_feats, **kwargs)
+    model = MetricResNet(in_feats, out_feats, **kwargs)
     out = model(features_per_vertex, pos, edges, faces)
     assert out.shape[1] == out_feats
 
@@ -61,7 +61,7 @@ def test_metric_conv_net(classification: bool):
     :param classification: Boolean indicating whether to convert model to classification network
     """
     kwargs["classification"] = classification
-    model = architectures.MetricConvNet(in_feats, out_feats, **kwargs)
+    model = MetricConvNet(in_feats, out_feats, **kwargs)
     out = model(features_per_vertex, pos, edges, faces)
     if classification:
         assert out.shape[0] == out_feats
@@ -74,6 +74,6 @@ def test_linear_metric_net():
     """
     Test of ``LinearMetricNet`` from the ``metric_conv`` module.
     """
-    model = architectures.LinearMetricNet(in_feats, out_feats, **kwargs)
+    model = LinearMetricNet(in_feats, out_feats, **kwargs)
     out = model(pos, edges, faces)
     assert out.shape[1] == out_feats
