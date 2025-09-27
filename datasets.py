@@ -8,12 +8,13 @@ import torch_geometric
 import trimesh
 import yaml
 from torch import FloatTensor, LongTensor, sparse
+from torch.utils.data import Dataset
 from torch_geometric.transforms import AddSelfLoops, FaceToEdge
 
 config = yaml.safe_load(open("config.yml"))
 
 
-class COSEG(torch.utils.data.Dataset):
+class COSEG(Dataset):
     def __init__(self, root: str, classes: List[str] = None, train: bool = True, normalize: bool = True):
         """
         COSEG ``dataset``
@@ -83,7 +84,7 @@ class COSEG(torch.utils.data.Dataset):
         return (vertices, edges, faces), target
 
 
-class HumanSegmentation(torch.utils.data.Dataset):
+class HumanSegmentation(Dataset):
     def __init__(self, root: str, train: bool = True, normalize: bool = True):
         """
         HumanSegmentation ``dataset``
@@ -133,7 +134,7 @@ class HumanSegmentation(torch.utils.data.Dataset):
         return (vertices, edges, faces), target
 
 
-class MeshCNNDataset(torch.utils.data.Dataset):
+class MeshCNNDataset(Dataset):
     def __init__(self, root: str, train: bool = True, normalize: bool = True):
         """
         SHREC 16 ``dataset``
