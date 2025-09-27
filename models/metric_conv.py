@@ -93,8 +93,7 @@ class MetricConv(nn.Module):
         vertex_delta = torch.zeros_like(vertices)
         return out, vertex_delta
 
-
-class DeformableMetricConv(nn.Module):
+class DeformableMetricConv(MetricConv):
     """
     ``MetricConv`` is a convolutional operator for mesh and graph structured data that incorporated elements from pseudo-Riemannian geometry. In particular, the message-passing/connectivity/adjacency matrix is computed using non-Euclidean distances, which are computed dynamically with a metric that changes between vertices (i.e. the kernel is not static across the mesh).
 
@@ -128,33 +127,8 @@ class DeformableMetricConv(nn.Module):
         embedding_dim: int = 3,
         symmetric: bool = True
     ):
-        super(DeformableMetricConv, self).__init__()
-
-        self.info = info
-        self.in_channels = in_channels
-        self.out_feats = out_feats + 3
-        self.weights = nn.Parameter(torch.Tensor(self.in_channels, self.out_feats))
-        if bias:
-            self.bias = nn.Parameter(torch.Tensor(out_feats))
-        else:
-            self.register_parameter("bias", None)
-
-        if info in info_to_metric.keys():
-            self.metric = info_to_metric[info](in_channels, metric_n_hidden, embedding_dim, symmetric)
-            # self.metric = Metric(info, in_channels, metric_n_hidden, embedding_dim, symmetric)
-        elif info == "vanilla":
-            # Metric tensor is identity across all vertices
-            self.metric = VanillaMetric(symmetric)
-        else:
-            raise ValueError(f"{info} is not an available metric type")
-
-        self.reset_parameters()
-
-    def reset_parameters(self) -> NoReturn:
-        "Glorot initialization"
-        nn.init.xavier_uniform_(self.weights)
-        if self.bias is not None:
-            self.bias.data.uniform_(-0.1, 0.1)
+        out_feats += 3
+        super(DeformableMetricConv, self).__init__(in_channels, out_feats, bias, info, metric_n_hidden, embedding_dim, symmetric)
 
     def forward(self, features: FloatTensor, vertices: FloatTensor, edges: LongTensor, faces: LongTensor) -> FloatTensor:
         """
@@ -165,19 +139,8 @@ class DeformableMetricConv(nn.Module):
 
         :return: Tensor containing features computed from computation described above.
         """
-        # Construct weighted adjacency matrix based on connectivity, using prescribed metric.
-        weighted_adj = self.metric(features, vertices, edges, faces)
-        self.weighted_adj = weighted_adj
-
-        # Store the metric tensor at each vertex for each layer
-        self.metric_per_vertex = self.metric.metric_per_vertex
-
-        # Compute output features via standard message-passing operation
-        out = sparse.mm(weighted_adj, torch.mm(features, self.weights))
-
+        out, _ = super(DeformableMetricConv, self).forward(features, vertices, edges, faces)
         vertex_delta = out[:,:3]
         vertex_delta = torch.tanh(vertex_delta) / 2
         out_feats = out[:,3:]
-        if self.bias is not None:
-            out_feats += self.bias
         return out_feats, vertex_delta
