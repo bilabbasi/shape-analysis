@@ -11,6 +11,8 @@ from torch import FloatTensor, LongTensor, sparse
 from torch.utils.data import Dataset
 from torch_geometric.transforms import AddSelfLoops, FaceToEdge
 
+from utils import Mesh
+
 config = yaml.safe_load(open("config.yml"))
 
 
@@ -49,27 +51,33 @@ class COSEG(Dataset):
         self.add_self_loops = AddSelfLoops()
         self.normalize = normalize
 
+    @staticmethod
+    def collate_fn(batch):
+        meshes = [item["mesh"] for item in batch]
+        targets = [item["target"] for item in batch]
+        return {"mesh": meshes, "target": targets}
+
     def __len__(self) -> int:
         """
         Returns length of dataset.
         """
         return len(self.files)
 
-    def __getitem__(self, idx: int) -> Tuple[Tuple[FloatTensor, LongTensor, LongTensor], LongTensor]:
+    def __getitem__(self, idx: int) -> Tuple[Mesh, LongTensor]:
         """
         Returns data and target of dataset at index ``idx``.
         """
         mesh_fp, gt = self.files[idx]
 
         # Load mesh data using trimesh
-        mesh = trimesh.load(mesh_fp)
-        vertices = torch.Tensor(mesh.vertices)
-        faces = torch.Tensor(mesh.faces)
+        _mesh = trimesh.load(mesh_fp)
+        vertices = torch.Tensor(_mesh.vertices)
+        faces = torch.Tensor(_mesh.faces)
+        mesh = Mesh(vertices, faces)
 
         # Convert to torch.geometric.data.Data type in order to use face_to_edge
         data = torch_geometric.data.Data(pos=vertices, face=faces.type(torch.long).t())
         data = self.add_self_loops(self.face_to_edge(data))
-        edges = data.edge_index
 
         target = torch.Tensor(np.loadtxt(gt)).type(torch.LongTensor) - 1
 
@@ -81,7 +89,11 @@ class COSEG(Dataset):
         if self.normalize:
             vertices = (vertices - vertices.min()) / (vertices.max() - vertices.min())
 
-        return (vertices, edges, faces), target
+        item = {
+            "mesh": mesh,
+            "target": target
+        }
+        return item
 
 
 class HumanSegmentation(Dataset):
@@ -110,28 +122,32 @@ class HumanSegmentation(Dataset):
         """
         return len(self.files)
 
-    def __getitem__(self, idx: int) -> Tuple[Tuple[FloatTensor, LongTensor, LongTensor], LongTensor]:
+    def __getitem__(self, idx: int) -> Tuple[Mesh, LongTensor]:
         """
         Returns data and target of dataset at index ``idx``.
         """
         mesh_fp, gt = self.files[idx]
 
         # Load mesh data using trimesh
-        mesh = trimesh.load(mesh_fp)
-        vertices = torch.Tensor(mesh.vertices)
-        faces = torch.Tensor(mesh.faces)
+        _mesh = trimesh.load(mesh_fp)
+        vertices = torch.Tensor(_mesh.vertices)
+        faces = torch.Tensor(_mesh.faces)
+        mesh = Mesh(vertices, faces)
 
         # Convert to torch.geometric.data.Data type in order to use face_to_edge
         data = torch_geometric.data.Data(pos=vertices, face=faces.type(torch.long).t())
         data = self.add_self_loops(self.face_to_edge(data))
-        edges = data.edge_index
 
         target = torch.Tensor(np.loadtxt(gt)).type(torch.LongTensor) - 1
 
         if self.normalize:
             vertices = (vertices - vertices.min()) / (vertices.max() - vertices.min())
 
-        return (vertices, edges, faces), target
+        item = {
+            "mesh": mesh,
+            "target": target
+        }
+        return item
 
 
 class MeshCNNDataset(Dataset):
@@ -168,21 +184,22 @@ class MeshCNNDataset(Dataset):
         """
         return len(self.files)
 
-    def __getitem__(self, idx: int) -> Tuple[Tuple[FloatTensor, LongTensor, LongTensor], int]:
+    def __getitem__(self, idx: int) -> Tuple[Mesh, int]:
         """
         Returns data and target of dataset at index ``idx``.
         """
         mesh_fp, target = self.files[idx]
 
         # Load mesh data using trimesh
-        mesh = trimesh.load(mesh_fp)
-        vertices = torch.Tensor(mesh.vertices)
-        faces = torch.Tensor(mesh.faces)
+        _mesh = trimesh.load(mesh_fp)
+        vertices = torch.Tensor(_mesh.vertices)
+        faces = torch.Tensor(_mesh.faces)
+
+        mesh = Mesh(vertices, faces)
 
         # Convert to torch.geometric.data.Data type in order to use face_to_edge
         data = torch_geometric.data.Data(pos=vertices, face=faces.type(torch.long).t())
         data = self.add_self_loops(self.face_to_edge(data))
-        edges = data.edge_index
 
         if len(vertices) == 250:
             # If we're short 2 vertices just concatenate the last vertex twice
@@ -191,4 +208,4 @@ class MeshCNNDataset(Dataset):
         if self.normalize:
             vertices = (vertices - vertices.min()) / (vertices.max() - vertices.min())
 
-        return (vertices, edges, faces), target
+        return mesh, target

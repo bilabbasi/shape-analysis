@@ -26,7 +26,7 @@ class Mesh:
                 if v1 > v2:
                     v1, v2 = v2, v1
                 if (v1, v2) not in edges:
-                    edges[(v1, v2)] = Edge(self.vertices[v1], self.vertices[v2])
+                    edges[(v1, v2)] = Edge(self.vertices[int(v1)], self.vertices[int(v2)])
         return list(edges.values())
 
     def compute_vertex_quadrics(self):
@@ -100,6 +100,10 @@ class Mesh:
         self.faces = [[new_vertex_map[vertex_map[i]] for i in face] for face in self.faces]
 
         return np.array([v.position for v in self.vertices]), self.faces, new_vertex_map
+
+    @property
+    def vertices(self):
+        return [v.position for v in self.vertices]
 
 def downsample_mesh(vertices, faces, target_vertices):
     mesh = Mesh(vertices, faces)

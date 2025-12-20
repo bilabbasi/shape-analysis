@@ -71,7 +71,6 @@ def train(
         # Compute losses
         if len(target) > len(pred):
             target = target[:len(pred)]
-        # breakpoint()
         loss = functional.nll_loss(functional.log_softmax(pred, dim=1), target)
         if orthonormality_penalty > 0:
             loss += utils.orthonormality_penalization(model.metric_per_vertex)
@@ -126,10 +125,13 @@ def test(model: Type[nn.Module], test_loader: Type[DataLoader], in_channels: int
 
     # TESTING LOOP
     model.eval()
-    for (v, e, f), target in test_loader:
-        v = v[0].to(device)
-        e = e[0].to(device)
-        f = f[0].to(device)
+    for batch in test_loader:
+        mesh = batch["mesh"][0]
+        target = batch["target"][0]
+
+        v = mesh.vertices.to(device)
+        f = mesh.faces.to(device)
+        e = mesh.edges.to(device)
         target = target[0].to(device)
 
         if in_channels == 1:
@@ -206,8 +208,8 @@ if __name__ == "__main__":
     else:
         raise Exception(f"{args['datasets']} is not an available dataset.")
 
-    train_loader = DataLoader(train_dataset, shuffle=True)
-    test_loader = DataLoader(test_dataset, shuffle=False)
+    train_loader = DataLoader(train_dataset, shuffle=True, collate_fn=train_dataset.collate_fn)
+    test_loader = DataLoader(test_dataset, shuffle=False, collate_fn=test_dataset.collate_fn)
     print(f"Datasets loaded. ({len(train_dataset)} in train set, {len(test_dataset)} in test set)")
 
     # Load model

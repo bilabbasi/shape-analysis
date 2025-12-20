@@ -79,19 +79,26 @@ class MetricConv(nn.Module):
         :return: Tensor containing features computed from computation described above.
         """
         # Construct weighted adjacency matrix based on connectivity, using prescribed metric.
-        weighted_adj = self.metric(features, vertices, edges, faces)
+        metric_output = self.metric(features, vertices, edges, faces)
+        weighted_adj = metric_output['adj_matrix']
+        metric_per_vertex = metric_output['metric_per_vertex']
+
         self.weighted_adj = weighted_adj
 
         # Store the metric tensor at each vertex for each layer
-        self.metric_per_vertex = self.metric.metric_per_vertex
+        self.metric_per_vertex = metric_per_vertex
 
         # Compute output features via standard message-passing operation
-        out = sparse.mm(weighted_adj, torch.mm(features, self.weights))
+        out_features = sparse.mm(weighted_adj, torch.mm(features, self.weights))
         if self.bias is not None:
-            out += self.bias
+            out_features += self.bias
         
-        vertex_delta = torch.zeros_like(vertices)
-        return out, vertex_delta
+        output = {}
+        output['out_features'] = out_features
+        output['metric_per_vertex'] = metric_per_vertex
+        output['weighted_adj'] = weighted_adj
+        output['vertex_delta'] = torch.zeros_like(vertices)
+        return output
 
 class DeformableMetricConv(MetricConv):
     """
@@ -139,8 +146,12 @@ class DeformableMetricConv(MetricConv):
 
         :return: Tensor containing features computed from computation described above.
         """
-        out, _ = super(DeformableMetricConv, self).forward(features, vertices, edges, faces)
-        vertex_delta = out[:,:3]
+        output = super(DeformableMetricConv, self).forward(features, vertices, edges, faces)
+        out_features = output['out_features']
+        vertex_delta = out_features[:,:3]
         vertex_delta = torch.tanh(vertex_delta) / 2
-        out_feats = out[:,3:]
-        return out_feats, vertex_delta
+        out_feats = out_features[:,3:]
+
+        output['out_features'] = out_feats
+        output['vertex_delta'] = vertex_delta
+        return output
