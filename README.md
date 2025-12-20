@@ -1,33 +1,37 @@
 # MetricConv: An adaptive convolutional neural network for graphs and meshes
 <img src="imgs/all_metrics01.png" align="center">
 
-## Getting started 
-This code was primarily developed with the following libraries on Python 3.8+:
-* [PyTorch 1.5+](https://pytorch.org/)
-* [PyTorch Geometric](https://github.com/rusty1s/pytorch_geometric)
-* [trimesh](https://github.com/mikedh/trimesh) 
+## Setup with `uv`
 
-as well as with help from the following libraries: [numpy](https://numpy.org/), [pandas](https://pandas.pydata.org/), [matplotlib](https://matplotlib.org/), [tqdm](https://github.com/tqdm/tqdm).
+This project is managed with `uv`, a fast Python package installer and resolver. The following steps will guide you through setting up the environment and installing dependencies.
 
-### Installation
-To get started, follow these steps:
-
-**1. Clone the repo.**
-Run the following in your console:
-```
-git clone https://github.com/eidosmontreal/shape-analysis
-cd shape_analysis
-export PYTHONPATH=$PWD:$PYTHONPATH
+**1. Clone the repo and navigate into it.**
+```bash
+git clone https://github.com/eidosmontreal/shape-analysis.git
+cd shape-analysis
 ```
 
-**2. Install the required dependencies.**
-If you do not wish to install the dependencies separately, you can install them using [conda](https://docs.conda.io/en/latest/) environments via the following command:
+**2. Install `uv` (if not already on your system).**
+We recommend installing `uv` via its standalone installation script:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
-conda env create -f environment.yml
-conda activate metric-conv
+Make sure `uv` is available in your `PATH`. You may need to source your shell profile (`source ~/.bashrc`, `source ~/.zshrc`, etc.) or add `~/.local/bin` to your `PATH` manually.
+
+**3. Create the virtual environment.**
+This command creates a virtual environment in a `.venv` directory.
+```bash
+uv venv --seed
 ```
 
-**3. Install PyTorch Geometric.** To install *PyTorch Geometric* we recommend following the steps outlined [here](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html). It is important to take note of the CUDA version of your system and ensure that the `cudatoolkit` version used for PyTorch is the same one used to install PyTorch Geometric. To find out your version you should run `nvidia-smi` from your terminal and take note of the `CUDA Version`.
+**4. Install dependencies.**
+This command installs the project in "editable" mode (`-e`) and installs all dependencies from `pyproject.toml`. This makes local modules like `train` and `models` importable without any `PYTHONPATH` manipulation.
+```bash
+uv pip install -e .
+```
+
+**Note on `torch-scatter`:** This project requires `torch-scatter`, which needs `torch` to be available during its build process. This is handled automatically by the configuration in `pyproject.toml` under the `[tool.uv.extra-build-dependencies]` section.
+
 
 ## MetricConv
 <img src="imgs/meshes.png" align="center">
@@ -90,19 +94,19 @@ To use the exact train/test split used in our experiments, add the flag `--split
 One can find training scripts for both the correspondence and segmentation tasks in `train`, with the appropriately labeled files. Details on the arguments used for the training scripts can be found in `train/train_args.py`, or by running, for example, the following command in the console:
 
 ```
-python train/segmentation.py -h
+uv run -m train.segmentation -h
 ```
 
 ### Experiments
 After installing the data as described in above, one can run sample training experiments found in `experiments/`. For example, to train a model for the correspondence task on the FAUST dataset, one can run: 
 ```
-python train/correspondence.py --yaml experiments/faust_correspondence.yml
+uv run -m train.correspondence --yaml experiments/faust_correspondence.yml
 ```
 
 ### Demos
 If you would like to visualize the results of a trained model, you can do so with the `demo.py` script in `scripts/`. For example, if you have saved a model whose weights are stored in `path/to/log` and the datasets are stored in `data`, you can run:
 ```
-python scripts/demo.py --root path/to/log --data-dir data
+uv run -m scripts.demo --root path/to/log --data-dir data
 ```
 which will store comparisons between ground truth and predictions (from the trained model) in `path/to/log/samples`.
 
@@ -110,5 +114,5 @@ which will store comparisons between ground truth and predictions (from the trai
 One may test basic functionalities of this repo using [pytest](https://docs.pytest.org/en/stable/). In particular, after installing `pytest` (`$ pip install -U pytest
 `), run the following:
 ```
-pytest tests
+uv run -m pytest tests
 ```
