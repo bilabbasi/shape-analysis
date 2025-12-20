@@ -1,0 +1,23 @@
+[project]
+name = "shape-analysis"
+version = "0.1.0"
+dependencies = [
+    "numpy<2.0",
+    "matplotlib",
+    "torch",
+    "torchvision",
+    "pandas",
+    "tqdm",
+    "trimesh",
+    "PyYAML",
+    "requests",
+    "cmake",
+    "pytest",
+    "isort",
+    "black",
+    "torch_geometric",
+    "torch-scatter",
+]
+
+[tool.uv.extra-build-dependencies]
+torch-scatter = ["torch"]
