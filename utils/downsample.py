@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from utils.mesh import read_off, mesh2ply, mesh2off
 
 class Vertex:
@@ -14,7 +15,7 @@ class Edge:
 
 class Mesh:
     def __init__(self, vertices, faces):
-        self.vertices = [Vertex(v) for v in vertices]
+        self._vertices = [Vertex(v) for v in vertices]
         self.faces = faces
         self.edges = self.build_edges()
 
@@ -26,12 +27,12 @@ class Mesh:
                 if v1 > v2:
                     v1, v2 = v2, v1
                 if (v1, v2) not in edges:
-                    edges[(v1, v2)] = Edge(self.vertices[int(v1)], self.vertices[int(v2)])
+                    edges[(v1, v2)] = Edge(self._vertices[int(v1)], self._vertices[int(v2)])
         return list(edges.values())
 
     def compute_vertex_quadrics(self):
         for face in self.faces:
-            v1, v2, v3 = [self.vertices[i].position for i in face]
+            v1, v2, v3 = [self._vertices[i].position for i in face]
             normal = np.cross(v2 - v1, v3 - v1)
             normal /= np.linalg.norm(normal)
             a, b, c, d = *normal, -np.dot(normal, v1)
@@ -40,7 +41,7 @@ class Mesh:
                           [a*c, b*c, c*c, c*d],
                           [a*d, b*d, c*d, d*d]])
             for i in face:
-                self.vertices[i].q += q
+                self._vertices[i].q += q
 
     def compute_edge_costs(self):
         for edge in self.edges:
@@ -59,27 +60,27 @@ class Mesh:
         self.compute_edge_costs()
         self.edges.sort(key=lambda e: e.cost)
 
-        vertex_map = {i: i for i in range(len(self.vertices))}
+        vertex_map = {i: i for i in range(len(self._vertices))}
         removed_vertices = set()
 
-        while len(self.vertices) - len(removed_vertices) > target_vertices:
+        while len(self._vertices) - len(removed_vertices) > target_vertices:
             try:
                 edge = self.edges.pop(0)
             except IndexError:
                 break
-            v1_idx, v2_idx = [self.vertices.index(v) for v in edge.vertices]
+            v1_idx, v2_idx = [self._vertices.index(v) for v in edge.vertices]
 
             # Skip if either vertex has been removed
             if v1_idx in removed_vertices or v2_idx in removed_vertices:
                 continue
 
             # Merge v2 into v1
-            v1_pos = self.vertices[v1_idx].position
-            v2_pos = self.vertices[v2_idx].position
+            v1_pos = self._vertices[v1_idx].position
+            v2_pos = self._vertices[v2_idx].position
 
             # self.vertices[v1_idx].position = edge.target
-            self.vertices[v1_idx].position = (v1_pos + v2_pos)/2
-            self.vertices[v1_idx].q += self.vertices[v2_idx].q
+            self._vertices[v1_idx].position = (v1_pos + v2_pos)/2
+            self._vertices[v1_idx].q += self._vertices[v2_idx].q
             removed_vertices.add(v2_idx)
 
             # Update vertex map
@@ -96,14 +97,25 @@ class Mesh:
 
         # Remove deleted vertices and update faces
         new_vertex_map = {v: i for i, v in enumerate(set(vertex_map.values()) - removed_vertices)}
-        self.vertices = [self.vertices[i] for i in new_vertex_map]
+        self._vertices = [self._vertices[i] for i in new_vertex_map]
         self.faces = [[new_vertex_map[vertex_map[i]] for i in face] for face in self.faces]
 
-        return np.array([v.position for v in self.vertices]), self.faces, new_vertex_map
+        return np.array([v.position for v in self._vertices]), self.faces, new_vertex_map
 
     @property
     def vertices(self):
-        return [v.position for v in self.vertices]
+        return torch.tensor([v.position for v in self._vertices], dtype=torch.float)
+
+    @property
+    def edge_index(self):
+        edge_indices = []
+        for face in self.faces:
+            for i in range(3):
+                v1, v2 = face[i].item(), face[(i + 1) % 3].item()
+                if v1 > v2:
+                    v1, v2 = v2, v1
+                edge_indices.append((v1, v2))
+        return torch.tensor(list(set(edge_indices)), dtype=torch.long).t().contiguous()
 
 def downsample_mesh(vertices, faces, target_vertices):
     mesh = Mesh(vertices, faces)
@@ -129,7 +141,7 @@ def process_segmentation_map(segmentation_file: str, vertex_map: dict=None):
 if __name__ == "__main__":
     # Example usage
     input_file = "data/COSEG/train/tele_aliens/shapes/1.off"
-    gt_file = "data/COSEG/train/tele_aliens/vert_gt/1.seg"
+    gt_file = "data.COSEG/train/tele_aliens/vert_gt/1.seg"
 
     output_file = "output_mesh.off"
     output_gt = "output_gt.seg"

@@ -72,7 +72,8 @@ class MetricConvBlock(nn.Module):
 
         :return: Returns tensor with ``n_hidden`` features for each vertex
         """
-        x, delta_vert = self.conv(features, vertices, edges, faces)
+        output = self.conv(features, vertices, edges, faces)
+        x, delta_vert = output['out_features'], output['vertex_delta']
         x = (x - x.mean(dim=0)) / (x.std(dim=0) + eps)
         x = self.nonlinear(x)
         self.metric_per_vertex = self.conv.metric_per_vertex
@@ -142,7 +143,8 @@ class MetricResBlock(nn.Module):
         :return: Returns tensor with ``n_hidden`` features for each vertex
         """
         residual = features.clone()  # Store original features to be added back as the residual
-        x, vertex_delta = self.conv(features, vertices, edges, faces)
+        output = self.conv(features, vertices, edges, faces)
+        x, vertex_delta = output['out_features'], output['vertex_delta']
         x = (x - x.mean(dim=0)) / (x.std(dim=0) + eps)
         x = self.nonlinear(x)
         out = (x + residual) / 2  # Add back residual and divide by 2 for average

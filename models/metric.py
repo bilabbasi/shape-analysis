@@ -414,4 +414,8 @@ class VanillaMetric(nn.Module):
 
         # Now build weighted adjacency matrix (attention matrix using distances from metric)
         new_adj = build_sparse_adjacency(edges, dist, device, symmetric=self.symmetric, num_vertices=num_nodes)
-        return new_adj
+        
+        output = {}
+        output['adj_matrix'] = new_adj
+        output['metric_per_vertex'] = self.metric_per_vertex
+        return output

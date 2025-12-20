@@ -6,7 +6,7 @@ from typing import Tuple, Type
 
 import numpy as np
 import torch
-import train_args
+from . import train_args
 import yaml
 from torch import FloatTensor, nn, optim
 from torch.nn import functional
@@ -55,11 +55,13 @@ def train(
 
     # TRAINING LOOP
     model.train()
-    for (v, e, f), target in tqdm(train_loader):
-        v = v[0].to(device)
-        e = e[0].to(device)
-        f = f[0].to(device)
-        target = target[0].to(device)
+    for batch in tqdm(train_loader):
+        mesh = batch['mesh'][0]
+        target = batch['target'][0]
+        v = mesh.vertices.to(device)
+        f = mesh.faces.to(device)
+        e = mesh.edge_index.to(device)
+        target = target.to(device)
 
         if in_channels == 1:
             input_features = torch.ones((len(v), 1)).to(device)
@@ -131,8 +133,8 @@ def test(model: Type[nn.Module], test_loader: Type[DataLoader], in_channels: int
 
         v = mesh.vertices.to(device)
         f = mesh.faces.to(device)
-        e = mesh.edges.to(device)
-        target = target[0].to(device)
+        e = mesh.edge_index.to(device)
+        target = target.to(device)
 
         if in_channels == 1:
             in_features = torch.ones((len(v), 1)).to(device)

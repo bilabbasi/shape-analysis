@@ -4,7 +4,7 @@ version = "0.1.0"
 dependencies = [
     "numpy<2.0",
     "matplotlib",
-    "torch",
+    "torch==2.2.2",
     "torchvision",
     "pandas",
     "tqdm",
@@ -21,3 +21,7 @@ dependencies = [
 
 [tool.uv.extra-build-dependencies]
 torch-scatter = ["torch"]
+
+[tool.setuptools]
+py-modules = ["datasets"]
+packages = ["models", "utils", "train", "preprocess", "scripts"]
