@@ -24,4 +24,4 @@ torch-scatter = ["torch"]
 
 [tool.setuptools]
 py-modules = ["datasets"]
-packages = ["models", "utils", "train", "preprocess", "scripts"]
+packages = ["scripts"]
