@@ -94,13 +94,13 @@ To use the exact train/test split used in our experiments, add the flag `--split
 One can find training scripts for both the correspondence and segmentation tasks in `train`, with the appropriately labeled files. Details on the arguments used for the training scripts can be found in `train/train_args.py`, or by running, for example, the following command in the console:
 
 ```
-uv run -m train.segmentation -h
+uv run python -m train.segmentation -h
 ```
 
 ### Experiments
 After installing the data as described in above, one can run sample training experiments found in `experiments/`. For example, to train a model for the correspondence task on the FAUST dataset, one can run: 
 ```
-uv run -m train.correspondence --yaml experiments/faust_correspondence.yml
+uv run python -m train.correspondence --yaml experiments/faust_correspondence.yml
 ```
 
 ### Demos
