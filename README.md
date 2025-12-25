@@ -1,36 +1,27 @@
 # MetricConv: An adaptive convolutional neural network for graphs and meshes
 <img src="imgs/all_metrics01.png" align="center">
 
-## Setup with `uv`
+## Getting Started
 
-This project is managed with `uv`, a fast Python package installer and resolver. The following steps will guide you through setting up the environment and installing dependencies.
+This project uses [`uv`](https://docs.astral.sh/uv/) for dependency management.
 
-**1. Clone the repo and navigate into it.**
+### Installation
+
+1.  **Install/Update dependencies:**
+    ```bash
+    uv sync
+    ```
+    This will create a virtual environment and install all necessary packages (including `torch` and `torch-scatter`).
+
+### Running Scripts
+
+Run scripts using `uv run` to automatically use the project's environment:
+
 ```bash
-git clone https://github.com/eidosmontreal/shape-analysis.git
-cd shape-analysis
+uv run scripts/train.py
 ```
 
-**2. Install `uv` (if not already on your system).**
-We recommend installing `uv` via its standalone installation script:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-Make sure `uv` is available in your `PATH`. You may need to source your shell profile (`source ~/.bashrc`, `source ~/.zshrc`, etc.) or add `~/.local/bin` to your `PATH` manually.
-
-**3. Create the virtual environment.**
-This command creates a virtual environment in a `.venv` directory.
-```bash
-uv venv --seed
-```
-
-**4. Install dependencies.**
-This command installs the project in "editable" mode (`-e`) and installs all dependencies from `pyproject.toml`. This makes local modules like `train` and `models` importable without any `PYTHONPATH` manipulation.
-```bash
-uv pip install -e .
-```
-
-**Note on `torch-scatter`:** This project requires `torch-scatter`, which needs `torch` to be available during its build process. This is handled automatically by the configuration in `pyproject.toml` under the `[tool.uv.extra-build-dependencies]` section.
+For more details on `uv`, check out the [official documentation](https://docs.astral.sh/uv/).
 
 
 ## MetricConv
